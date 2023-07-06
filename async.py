@@ -35,7 +35,7 @@ for stock in config["symbols"]["stock"]:
     # Initialize the dictionary entry for this symbol
     # You might want to adjust this part based on your needs
     previous_data_dict[symbol] = {
-        'prices': deque(maxlen=26),  # Will keep only the last 14 prices
+        'prices': deque(maxlen=14),  # Will keep only the last 14 prices
         'macd': None,
         'signal': None,
         'histogram': None,
@@ -178,15 +178,7 @@ def process_results(results, timeframe, data_type):
                 "Histogram": histogram[-1]  # the last value is the current histogram
             })
 
-async def get_historic_data_base(symbols, api, activity_level):
-    timeframe = config["activity_levels"][activity_level]["timeframe"]
-    limit = config["activity_levels"][activity_level]["limit"]
-
-    msg = f"Getting historic data for {len(symbols)} symbols"
-    msg += f", limit: {limit}"
-    msg += f", timeframe: {timeframe}"
-    print(msg)
-
+async def get_historic_data_base(symbols, data_type: DataType, start, end, timeframe: str = None):
     """
     base function to use with all
     :param symbols:
@@ -199,14 +191,14 @@ async def get_historic_data_base(symbols, api, activity_level):
     minor = sys.version_info.minor
     if major < 3 or minor < 6:
         raise Exception('asyncio is not support in your python version')
-    data_type = "historical"
+    msg = f"Getting {data_type} data for {len(symbols)} symbols"
+    msg += f", timeframe: {timeframe}" if timeframe else ""
+    msg += f" between dates: start={start}, end={end}"
     #print(msg)
 
     tasks = create_tasks(symbols, start, end, timeframe, data_type)
     results = await gather_tasks(tasks, minor)
     process_results(results, timeframe, data_type)  # pass timeframe and data_type as arguments
-    print(historic_data)
-
 
 async def get_historic_bars(symbols, start, end, timeframe: TimeFrame):
     await get_historic_data_base(symbols, DataType.Bars, start, end, timeframe)
@@ -383,34 +375,18 @@ def clear_screen():
 async def main(stocks):
     previous_data_dict = {}
     trade_data_list = []
-    limit = config["activity_levels"]["1Min"]["limit"]  # Adjust this based on your needs
-    historic_data = await get_historic_data_base(stocks, api, limit)
 
     # Initialize previous_data_dict for each symbol
     for stock in stocks:
-        activity_level = stock['activity_level']  # Get the activity level from the stock
-        historic_data = await get_historic_data_base([stock], api, activity_level)
-    # Rest of your code...
+        previous_data_dict[stock['symbol']] = {
+            'prices': deque(maxlen=14),  # Will keep only the last 14 prices
+            'macd': None,
+            'signal': None,
+            'histogram': None,
+            'rsi': None
+        }
 
-           
     stream = await setup_stream()
-    
-    for symbol in symbols:
-        # Get the historical data for this symbol
-        data = historic_data[symbol]
-
-        # Get the previous data for this symbol
-        previous_data = previous_data_dict[symbol]
-
-        # Populate the prices deque with the historical data
-        for price in data['prices']:
-            previous_data['prices'].append(price)
-
-        # Calculate the MACD, signal, and histogram based on the historical data
-        previous_data['macd'], previous_data['signal'], previous_data['histogram'] = calculate_macd(previous_data['prices'])
-
-        # Update the previous data dict
-        previous_data_dict[symbol] = previous_data    
     
     # Fetch historic data once at the start
     for stock in stocks:
@@ -427,8 +403,6 @@ async def main(stocks):
 
         # Sleep for a while before the next iteration
         await asyncio.sleep(20)  # Sleep for 20 seconds
-        print(previous_data_dict)
-
 
 if __name__ == '__main__':
     print('Starting main function')  # This will print when the main function starts
