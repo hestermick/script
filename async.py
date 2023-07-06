@@ -35,7 +35,7 @@ for stock in config["symbols"]["stock"]:
     # Initialize the dictionary entry for this symbol
     # You might want to adjust this part based on your needs
     previous_data_dict[symbol] = {
-        'prices': deque(maxlen=14),  # Will keep only the last 14 prices
+        'prices': deque(maxlen=26),  # Will keep only the last 14 prices
         'macd': None,
         'signal': None,
         'histogram': None,
@@ -199,6 +199,8 @@ async def get_historic_data_base(symbols, data_type: DataType, start, end, timef
     tasks = create_tasks(symbols, start, end, timeframe, data_type)
     results = await gather_tasks(tasks, minor)
     process_results(results, timeframe, data_type)  # pass timeframe and data_type as arguments
+    print(historic_data)
+
 
 async def get_historic_bars(symbols, start, end, timeframe: TimeFrame):
     await get_historic_data_base(symbols, DataType.Bars, start, end, timeframe)
@@ -375,11 +377,12 @@ def clear_screen():
 async def main(stocks):
     previous_data_dict = {}
     trade_data_list = []
+    historic_data = await get_historic_data_base(symbols, api)
 
     # Initialize previous_data_dict for each symbol
     for stock in stocks:
         previous_data_dict[stock['symbol']] = {
-            'prices': deque(maxlen=14),  # Will keep only the last 14 prices
+            'prices': deque(maxlen=26),  # Will keep only the last 14 prices
             'macd': None,
             'signal': None,
             'histogram': None,
@@ -387,6 +390,23 @@ async def main(stocks):
         }
 
     stream = await setup_stream()
+    
+    for symbol in symbols:
+        # Get the historical data for this symbol
+        data = historic_data[symbol]
+
+        # Get the previous data for this symbol
+        previous_data = previous_data_dict[symbol]
+
+        # Populate the prices deque with the historical data
+        for price in data['prices']:
+            previous_data['prices'].append(price)
+
+        # Calculate the MACD, signal, and histogram based on the historical data
+        previous_data['macd'], previous_data['signal'], previous_data['histogram'] = calculate_macd(previous_data['prices'])
+
+        # Update the previous data dict
+        previous_data_dict[symbol] = previous_data    
     
     # Fetch historic data once at the start
     for stock in stocks:
@@ -403,6 +423,8 @@ async def main(stocks):
 
         # Sleep for a while before the next iteration
         await asyncio.sleep(20)  # Sleep for 20 seconds
+        print(previous_data_dict)
+
 
 if __name__ == '__main__':
     print('Starting main function')  # This will print when the main function starts
