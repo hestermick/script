@@ -178,7 +178,7 @@ def process_results(results, timeframe, data_type):
                 "Histogram": histogram[-1]  # the last value is the current histogram
             })
 
-async def get_historic_data_base(symbols, data_type: DataType, start, end, timeframe: str = None):
+async def get_historic_data_base(symbols, session, limit):
     """
     base function to use with all
     :param symbols:
@@ -191,7 +191,9 @@ async def get_historic_data_base(symbols, data_type: DataType, start, end, timef
     minor = sys.version_info.minor
     if major < 3 or minor < 6:
         raise Exception('asyncio is not support in your python version')
+    data_type = "historical"
     msg = f"Getting {data_type} data for {len(symbols)} symbols"
+
     msg += f", timeframe: {timeframe}" if timeframe else ""
     msg += f" between dates: start={start}, end={end}"
     #print(msg)
@@ -377,19 +379,15 @@ def clear_screen():
 async def main(stocks):
     previous_data_dict = {}
     trade_data_list = []
-    start = config["start"]
-    end = config["end"]
-    historic_data = await get_historic_data_base(stocks, api, start, end)
+    limit = config["activity_levels"]["1Min"]["limit"]  # Adjust this based on your needs
+    historic_data = await get_historic_data_base(stocks, api, limit)
 
     # Initialize previous_data_dict for each symbol
     for stock in stocks:
-        previous_data_dict[stock['symbol']] = {
-            'prices': deque(maxlen=26),  # Will keep only the last 14 prices
-            'macd': None,
-            'signal': None,
-            'histogram': None,
-            'rsi': None
-        }
+        activity_level = stock["activity_level"]
+        limit = config["activity_levels"][activity_level]["limit"]
+        timeframe = config["activity_levels"][activity_level]["timeframe"]
+        historic_data = await get_historic_data_base(stock, api, limit, timeframe)
 
     stream = await setup_stream()
     
