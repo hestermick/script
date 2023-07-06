@@ -1,31 +1,3 @@
-from enum import Enum
-import time
-import alpaca_trade_api as tradeapi
-import asyncio
-import os
-import pandas as pd
-import sys
-import json
-import curses
-from alpaca_trade_api.rest import TimeFrame, URL
-from alpaca_trade_api.rest_async import gather_with_concurrency, AsyncRest
-from alpaca_trade_api.common import URL
-from alpaca_trade_api.stream import Stream
-from ta.trend import MACD
-from ta.momentum import RSIIndicator
-from tabulate import tabulate
-from ta.trend import EMAIndicator
-from collections import deque
-from ta.momentum import RSIIndicator
-import ta
-
-
-NY = 'America/New_York'
-
-# Read the configuration file
-with open('config.json') as f:
-    config = json.load(f)
-
 # Initialize the dictionary
 previous_data_dict = {}
 
@@ -35,25 +7,13 @@ for stock in config["symbols"]["stock"]:
     # Initialize the dictionary entry for this symbol
     # You might want to adjust this part based on your needs
     previous_data_dict[symbol] = {
-        'prices': deque(maxlen=14),  # Will keep only the last 14 prices
+        'prices': deque(maxlen=26),  # Will keep only the last 14 prices
         'macd': None,
         'signal': None,
         'histogram': None,
         'rsi': None
     }
     
-# Initialize an empty list to store trade data
-trade_data_list = []    
-
-# Extract the API keys from the configuration file
-api_key = config['api_key']
-api_secret = config['api_secret']
-
-# Initialize the Alpaca API client
-api = tradeapi.REST(api_key, api_secret, base_url='https://paper-api.alpaca.markets', api_version='v2')
-rest = AsyncRest(key_id=api_key, secret_key=api_secret)
-
-feed = "sip"  # change to "sip" if you have a paid account
 
 async def trade_callback(t):
     #print('trade_callback function called')
@@ -74,11 +34,11 @@ async def trade_callback(t):
 
     # Update the data and calculations
     previous_data['prices'].append(price)  # Add the new price
-    if len(previous_data['prices']) > 14:  # Keep only the last 14 prices
+    if len(previous_data['prices']) > 26:  # Keep only the last 14 prices
         previous_data['prices'].popleft()
 
     previous_data['macd'], previous_data['signal'], previous_data['histogram'] = calculate_macd(previous_data['prices'])
-    previous_data['rsi'] = calculate_rsi(previous_data['prices'], 14)
+    previous_data['rsi'] = calculate_rsi(previous_data['prices'], 16)
 
     previous_data_dict[symbol] = previous_data  # Update the previous data dict
 
@@ -265,7 +225,7 @@ async def get_stock_bars(stock):
                         stock['rsi_thresholds']['Sell'], stock['sell_at_loss'], stock['multiple_trades'])
     
     previous_data_dict[symbol] = {
-        'prices': deque(list(data['close'][-14:])),  # Keep only the last 14 prices
+        'prices': deque(list(data['close'][-26:])),  # Keep only the last 14 prices
         'macd': macd_line,
         'signal': signal_line,
         'histogram': histogram,
@@ -350,28 +310,6 @@ async def trade_rsi(symbol, data, trade_amount, rsi_buy_threshold, rsi_sell_thre
         print(f"RSI - Selling {trade_amount} shares of {symbol}")  # This will print when selling due to RSI
         api.submit_order(symbol, trade_amount, 'sell', 'market', 'gtc')
 
-# Define the asynchronous place_order function
-async def place_order(api, symbol, qty, side, order_type, time_in_force):
-    try:
-        order = await api.submit_order(
-            symbol=symbol,
-            qty=qty,
-            side=side,
-            type=order_type,
-            time_in_force=time_in_force
-        )
-        print(f"{side.capitalize()} order placed for {symbol} with quantity {qty}.")
-        return order
-    except Exception as e:
-        print(f"Error placing {side} order for {symbol}: {e}")
-        return None
-
-def print_table():
-    print(tabulate(trade_data_list, headers="keys", tablefmt="pretty"))
-
-def clear_screen():
-    os.system('cls' if os.name == 'nt' else 'clear')
-
 async def main(stocks):
     previous_data_dict = {}
     trade_data_list = []
@@ -379,7 +317,7 @@ async def main(stocks):
     # Initialize previous_data_dict for each symbol
     for stock in stocks:
         previous_data_dict[stock['symbol']] = {
-            'prices': deque(maxlen=14),  # Will keep only the last 14 prices
+            'prices': deque(maxlen=26),  # Will keep only the last 14 prices
             'macd': None,
             'signal': None,
             'histogram': None,
