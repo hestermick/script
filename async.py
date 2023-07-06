@@ -377,7 +377,9 @@ def clear_screen():
 async def main(stocks):
     previous_data_dict = {}
     trade_data_list = []
-    historic_data = await get_historic_data_base(symbols, api)
+    start = config["start"]
+    end = config["end"]
+    historic_data = await get_historic_data_base(stocks, api, start, end)
 
     # Initialize previous_data_dict for each symbol
     for stock in stocks:
